@@ -4,20 +4,33 @@
 #include <string>
 #include <vector>
 
+// Arquivo já gravado no disco antes da simulação
 struct DiskSegment {
-    // TODO: nome do arquivo, primeiro bloco, quantidade de blocos
+    std::string fileName;
+    int firstBlock  = 0;
+    int blockCount = 0;
 };
 
+// Tipo de operação
 enum class FileOperationType {
-    // TODO: dois valores, dá pra fixar o número de cada um: Create = 0, Delete = 1
+    Create = 0,
+    Delete = 1,
 };
 
+// Operação a ser executada pelo sistema de arquivos
 struct FileOperation {
-    // TODO: PID, tipo, nome do arquivo, quantidade de blocos (só para criar)
+    int pid = 0;
+    FileOperationType type = FileOperationType::Create;
+    std::string fileName;
+    int blockCount = 0; // usado só em create
 };
 
+
+// Conteúdo completo de files.txt, devidamente interpretado
 struct FileSystemInput {
-    // TODO: total de blocos, segmentos iniciais, operações
+    int totalBlocks = 0;
+    std::vector<DiskSegment> initialSegments;
+    std::vector<FileOperation> operations;
 };
 
 // (Definir a classe do filesystem aqui depois)

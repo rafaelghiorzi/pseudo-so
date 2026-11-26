@@ -40,6 +40,72 @@ namespace {
         }
     }
 
+    // Lê o arquivo inteiro e devolve apenas as linhas não vazias, já sem espaços nas pontas
+    std::vector<std::string> readNonEmptyLines(const std::string& path) {
+        std::ifstream file(path);
+        if (!file.is_open()) {
+            throw std::runtime_error("Não foi possível abrir " + path);
+        }
+
+        std::vector<std::string> lines;
+        std::string line;
+        while (std::getline(file, line)) {
+            std::string cleanLine = trim(line);
+            if (!cleanLine.empty()) {
+                lines.push_back(cleanLine);
+            }
+        }
+        return lines;
+    }
+
+    // "X, 0, 2" -> arquivo X, começando no bloco 0, ocupando 2 blocos
+    DiskSegment parseSegment(const std::string& line, int lineNumber) {
+        std::vector<std::string> fields = splitByComma(line);
+        if (fields.size() != 3) {
+            throw std::runtime_error("linha " + std::to_string(lineNumber) +
+                                    ": segmento deve ter 3 campos");
+        }
+
+        DiskSegment segment;
+        segment.fileName   = fields[0];
+        segment.firstBlock = toInt(fields[1], lineNumber);
+        segment.blockCount = toInt(fields[2], lineNumber);
+        return segment;
+    }
+
+    // "0, 0, A, 5" (criar) ou "0, 1, X" (deletar)
+    FileOperation parseOperation(const std::string& line, int lineNumber) {
+        std::vector<std::string> fields = splitByComma(line);
+        if (fields.size() < 3) {
+            throw std::runtime_error("linha " + std::to_string(lineNumber) +
+                                    ": operação deve ter ao menos 3 campos");
+        }
+
+        FileOperation operation;
+        operation.pid      = toInt(fields[0], lineNumber);
+        operation.fileName = fields[2];
+
+        int code = toInt(fields[1], lineNumber);
+        if (code == static_cast<int>(FileOperationType::Create)) {
+            if (fields.size() != 4) {
+                throw std::runtime_error("linha " + std::to_string(lineNumber) +
+                                        ": operação de criar deve ter 4 campos");
+            }
+            operation.type       = FileOperationType::Create;
+            operation.blockCount = toInt(fields[3], lineNumber);
+        } else if (code == static_cast<int>(FileOperationType::Delete)) {
+            if (fields.size() != 3) {
+                throw std::runtime_error("linha " + std::to_string(lineNumber) +
+                                        ": operação de deletar deve ter 3 campos");
+            }
+            operation.type = FileOperationType::Delete;
+        } else {
+            throw std::runtime_error("linha " + std::to_string(lineNumber) +
+                                    ": código de operação inválido " + std::to_string(code));
+        }
+        return operation;
+    }
+
 } // namespace
 
 std::vector<Process> readProcesses(const std::string& path) {
@@ -123,19 +189,29 @@ void readReferenceStrings(const std::string& path, std::vector<Process>& process
 }
 
 FileSystemInput readFileSystemInput(const std::string& path) {
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        throw std::runtime_error("Não foi possível abrir " + path);
+    std::vector<std::string> lines = readNonEmptyLines(path);
+    if (lines.size() < 2) {
+        throw std::runtime_error(path + ": faltam as linhas de total de blocos e de segmentos");
     }
 
-    // TODO — dica: primeiro leia TODAS as linhas não vazias para um
-    // std::vector<std::string>, e só depois interprete por índice:
-    //   linhas[0]            -> total de blocos
-    //   linhas[1]            -> n
-    //   linhas[2 .. n+1]     -> segmentos
-    //   linhas[n+2 .. fim]   -> operações
-    // Isso evita uma máquina de estados dentro do while.
-    //
-    // Nas operações: o 4º campo só existe quando o código é 0.
-    // Conferir a quantidade de campos de acordo com o código.
+    FileSystemInput input;
+    input.totalBlocks = toInt(lines[0], 1);
+
+    int segmentCount = toInt(lines[1], 2);
+    if (segmentCount < 0) {
+        throw std::runtime_error(path + ": quantidade de segmentos negativa");
+    }
+
+    size_t firstOperationLine = static_cast<size_t>(segmentCount) + 2;
+    if (lines.size() < firstOperationLine) {
+        throw std::runtime_error(path + ": faltam linhas de segmentos");
+    }
+
+    for (size_t i = 2; i < firstOperationLine; ++i) {
+        input.initialSegments.push_back(parseSegment(lines[i], static_cast<int>(i) + 1));
+    }
+    for (size_t i = firstOperationLine; i < lines.size(); ++i) {
+        input.operations.push_back(parseOperation(lines[i], static_cast<int>(i) + 1));
+    }
+    return input;
 }
