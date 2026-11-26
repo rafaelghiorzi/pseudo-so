@@ -43,25 +43,91 @@ namespace {
 } // namespace
 
 std::vector<Process> readProcesses(const std::string& path) {
-    // TODO:
-    // 1. abrir o arquivo e conferir
-    // 2. para cada linha não vazia:
-    //    - quebrar em campos e conferir que são 8
-    //    - converter cada campo
-    //    - montar o DeviceRequest (atenção à ORDEM das colunas no PDF)
-    //    - construir o Process com o PID = quantidade de processos já lidos
-    // 3. retornar o vetor
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Não foi possível abrir " + path);
+    }
+
+    std::vector<Process> processes;
+    std::string line;
+    int lineNumber = 0;
+
+    while (std::getline(file, line)) {
+        ++lineNumber;
+
+        if (trim(line).empty()) {
+            continue; // ignorar linhas em branco
+        }
+
+        std::vector<std::string> fields = splitByComma(line);
+        if (fields.size() != 8) {
+            throw std::runtime_error("Linha " + std::to_string(lineNumber) + " esperava 8 campos");
+        }
+
+        int pid        = static_cast<int>(processes.size());
+        int arrival    = toInt(fields[0], lineNumber);
+        int priority   = toInt(fields[1], lineNumber);
+        int cpuTime    = toInt(fields[2], lineNumber);
+        int workingSet = toInt(fields[3], lineNumber);
+
+        DeviceRequest devices;
+        devices.printer = toInt(fields[4], lineNumber);
+        devices.scanner = toInt(fields[5], lineNumber);
+        devices.modem   = toInt(fields[6], lineNumber);
+        devices.sata    = toInt(fields[7], lineNumber);
+
+        processes.push_back(Process(
+            pid,
+            arrival,
+            priority,
+            cpuTime,
+            workingSet,
+            devices
+        ));
+    }
+            
+    return processes;
 }
 
 void readReferenceStrings(const std::string& path, std::vector<Process>& processes) {
-    // TODO:
-    // 1. abrir o arquivo e conferir
-    // 2. para cada linha não vazia, converter todos os campos e
-    //    atribuir ao referenceString do processo correspondente
-    // 3. decidir: e se houver menos linhas que processos? E mais?
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Não foi possível abrir " + path);
+    }
+
+    std::string line;
+    int lineNumber = 0;
+    size_t processIndex = 0; // Quantas strings já foram atribuídas
+
+    while (std::getline(file, line)) {
+        ++lineNumber;
+
+        if (trim(line).empty()) {
+            continue; // ignora linhas em branco
+        }
+
+        if (processIndex >= processes.size()) {
+            throw std::runtime_error("string.txt tem mais linhas que processos");
+        }
+
+        for (const std::string& page : splitByComma(line)) {
+            processes[processIndex].referenceString.push_back(toInt(page, lineNumber));
+        }
+        ++processIndex;
+    }
+
+    if (processIndex != processes.size()) {
+        throw std::runtime_error("string.txt tem menos linhas que processos");
+    }    
+
 }
 
 FileSystemInput readFileSystemInput(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Não foi possível abrir " + path);
+    }
+
     // TODO — dica: primeiro leia TODAS as linhas não vazias para um
     // std::vector<std::string>, e só depois interprete por índice:
     //   linhas[0]            -> total de blocos
