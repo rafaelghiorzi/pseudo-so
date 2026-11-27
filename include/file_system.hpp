@@ -1,6 +1,8 @@
 #ifndef FILESYSTEM_HPP
 #define FILESYSTEM_HPP
 
+#include "process.hpp"
+
 #include <string>
 #include <vector>
 #include <map>
@@ -76,9 +78,10 @@ private:
 
     // Únicas funções que alteram blocks e files
     void placeFile(const std::string& name, int firstBlock, int blockCount, int ownerPid);
+    
     OperationResult deleteFile(const FileOperation& operation, const Process& process);
-
     OperationResult createFile(const FileOperation& operation);
+    
     int findFirstFit(int blockCount) const;
     static std::string formatBlockList(int firstBlock, int blockCount);
 };
